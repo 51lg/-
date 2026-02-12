@@ -3,27 +3,27 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>三圆定位 - 高德地图版</title>
+    <title>三圆定位 - 最终完美版</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
     <style>
-        body { margin: 0; padding: 0; font-family: "Microsoft YaHei", sans-serif; overflow: hidden; }
-        * { box-sizing: border-box; } /* 确保所有的宽高计算都包含内边距，防止撑破 */
+        body { margin: 0; padding: 0; font-family: "Microsoft YaHei", sans-serif; overflow: hidden; background: #f0f0f0; }
+        * { box-sizing: border-box; }
         #map { height: 100vh; width: 100%; z-index: 1; }
         
-        /* 默认 PC 端控制面板 */
+        /* 控制面板 */
         #controls {
-            position: absolute; top: 10px; left: 10px; width: 320px; max-width: calc(100vw - 20px);
-            background: rgba(255, 255, 255, 0.95);
+            position: absolute; top: 10px; left: 10px; width: 360px; max-width: calc(100vw - 20px);
+            background: rgba(255, 255, 255, 0.98);
             border-radius: 8px;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            box-shadow: 0 4px 16px rgba(0,0,0,0.15);
             z-index: 1000; display: flex; flex-direction: column;
             transition: all 0.3s ease;
         }
         
         .controls-header {
             display: flex; justify-content: space-between; align-items: center;
-            padding: 10px 15px; background: #007bff; color: white;
+            padding: 12px 15px; background: #007bff; color: white;
             border-radius: 8px 8px 0 0; cursor: pointer;
             font-weight: bold; font-size: 15px;
         }
@@ -34,17 +34,24 @@
         }
 
         .row { display: flex; align-items: center; gap: 8px; width: 100%; }
-        #controls label { font-size: 14px; font-weight: bold; color: #333; white-space: nowrap;}
-        #controls input { flex: 1; padding: 8px; border: 1px solid #ccc; border-radius: 4px; font-size: 14px; width: 100%; }
         
-        button {
-            padding: 9px; border: none; border-radius: 4px; 
-            font-size: 14px; font-weight: bold; color: white; cursor: pointer;
-            transition: opacity 0.2s; 
-            word-wrap: break-word; /* 允许文字换行 */
-            white-space: normal;
+        /* 输入框样式优化 */
+        #controls input { 
+            flex: 1; padding: 10px; 
+            border: 1px solid #ddd; border-radius: 4px; 
+            font-size: 14px; outline: none; transition: border 0.2s;
         }
-        button:hover { opacity: 0.8; }
+        #controls input:focus { border-color: #007bff; }
+        #controls label { font-size: 14px; font-weight: bold; color: #555; white-space: nowrap;}
+        
+        /* 按钮通用样式 */
+        button {
+            padding: 10px; border: none; border-radius: 4px; 
+            font-size: 14px; font-weight: bold; color: white; 
+            cursor: pointer; transition: opacity 0.2s; 
+            word-wrap: break-word; white-space: normal;
+        }
+        button:hover { opacity: 0.9; }
         button:active { transform: scale(0.98); }
         
         .btn-primary { background: #007bff; }
@@ -52,115 +59,139 @@
         .btn-clear { background: #dc3545; width: 100%; }
         
         .tip { 
-            font-size: 12px; color: #666; background: #e9ecef; 
-            padding: 8px; border-radius: 4px; line-height: 1.5;
+            font-size: 12px; color: #666; background: #f8f9fa; 
+            padding: 10px; border-radius: 4px; line-height: 1.6; border: 1px solid #eee;
         }
 
-        /* PS风格图层面板 */
-        .layer-panel { border: 1px solid #ddd; border-radius: 4px; display: flex; flex-direction: column; background: #fff; width: 100%; }
-        .layer-header { background: #f1f3f5; padding: 6px 10px; font-size: 12px; font-weight: bold; border-bottom: 1px solid #ddd; color: #495057; }
+        /* 图层面板 */
+        .layer-panel { border: 1px solid #eee; border-radius: 4px; display: flex; flex-direction: column; background: #fff; width: 100%; }
+        .layer-header { background: #f8f9fa; padding: 8px 10px; font-size: 12px; font-weight: bold; border-bottom: 1px solid #eee; color: #666; }
         .layer-list { list-style: none; margin: 0; padding: 0; max-height: 140px; overflow-y: auto; width: 100%; }
-        .layer-item { display: flex; justify-content: space-between; align-items: center; padding: 6px 10px; border-bottom: 1px solid #eee; font-size: 13px; transition: background 0.2s; }
-        .layer-item:hover { background: #f8f9fa; }
-        .layer-item:last-child { border-bottom: none; }
-        .layer-name { flex: 1; overflow: hidden; text-overflow: ellipsis; margin-right: 5px; font-size: 12px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
-        .layer-actions { display: flex; gap: 8px; flex-shrink: 0; }
-        .icon-btn { cursor: pointer; border: none; background: none; font-size: 14px; padding: 0; opacity: 0.7; transition: opacity 0.2s; }
-        .icon-btn:hover { opacity: 1; }
-
-        /* ========================================================
-           智能设备适配：手机专属“迷你” UI (缩小约 50%，严格防溢出)
-           ======================================================== */
-        body.mobile-mode #controls {
-            width: 220px; /* 大幅缩小基础宽度 */
-            max-width: 85vw; /* 严格限制最大不能超过屏幕85% */
-            left: 5vw; /* 居中偏移一点 */
-            top: 5px;
-        }
-        body.mobile-mode .controls-header { padding: 6px 10px; font-size: 12px; }
-        body.mobile-mode .controls-content { padding: 8px; gap: 6px; }
-        body.mobile-mode .row { gap: 4px; }
-        body.mobile-mode #controls label { font-size: 11px; }
-        body.mobile-mode #controls input { padding: 4px; font-size: 12px; }
-        body.mobile-mode button { padding: 5px; font-size: 11px; line-height: 1.2; }
-        body.mobile-mode .tip { font-size: 10px; padding: 5px; line-height: 1.3; margin: 2px 0;}
-        body.mobile-mode .layer-header { font-size: 11px; padding: 4px 6px; }
-        body.mobile-mode .layer-item { padding: 4px 6px; }
-        body.mobile-mode .layer-name { font-size: 11px; }
-        body.mobile-mode .layer-list { max-height: 90px; }
-        body.mobile-mode .icon-btn { font-size: 12px; }
+        .layer-item { display: flex; justify-content: space-between; align-items: center; padding: 8px 10px; border-bottom: 1px solid #f0f0f0; font-size: 13px; }
+        .layer-item:hover { background: #f9f9f9; }
+        .layer-name { flex: 1; overflow: hidden; text-overflow: ellipsis; margin-right: 5px; font-size: 13px; color: #333; }
         
-        /* 针对手机极端小屏的进一步缩放 */
-        @media (max-width: 350px) {
-            body.mobile-mode #controls { width: 92vw; left: 4vw; }
-            body.mobile-mode button { font-size: 10px; padding: 4px; }
+        .icon-btn { 
+            cursor: pointer; border: none; background: none; 
+            font-size: 14px; padding: 0 5px; 
+            color: #999; transition: color 0.2s;
+        }
+        .icon-btn:hover { color: #333; }
+        .icon-btn.delete:hover { color: #dc3545; } 
+        .icon-btn.eye:hover { color: #007bff; }
+
+        /* ==================================================
+           仿高德搜索联想样式
+           ================================================== */
+        .search-wrapper { position: relative; flex: 1; }
+        
+        #searchResults {
+            position: absolute; top: 100%; left: 0; width: 100%;
+            background: white; 
+            border: 1px solid #eee; border-top: none;
+            border-radius: 0 0 8px 8px;
+            box-shadow: 0 8px 16px rgba(0,0,0,0.1); 
+            z-index: 2000;
+            max-height: 300px; overflow-y: auto; display: none;
         }
 
-        /* 调整地图自带控件的位置（右侧），同时稍微缩小它 */
-        .leaflet-top.leaflet-right {
-            margin-top: 50px; 
-            z-index: 999;     
+        .suggestion-item {
+            display: flex;
+            align-items: center;
+            padding: 12px 15px; /* 加大内边距 */
+            cursor: pointer;
+            border-bottom: 1px solid #f5f5f5;
+            transition: background 0.1s;
         }
-        body.mobile-mode .leaflet-top.leaflet-right {
-            transform: scale(0.85); /* 手机端连同地图控件一起缩小 */
-            transform-origin: top right;
+
+        .suggestion-item:last-child { border-bottom: none; }
+        .suggestion-item:hover { background-color: #f2f2f2; }
+
+        /* 左侧放大镜图标 (灰色) */
+        .suggestion-icon {
+            color: #ccc;
+            font-size: 14px;
+            margin-right: 12px;
+            width: 20px; text-align: center;
         }
+
+        /* 文本区域布局 */
+        .suggestion-info {
+            flex: 1;
+            display: flex;
+            align-items: baseline; /* 让名字和地址底部对齐 */
+            overflow: hidden;
+        }
+
+        /* 地点名称 (深色) */
+        .suggestion-name {
+            font-size: 15px;
+            color: #333;
+            white-space: nowrap;
+            margin-right: 10px;
+        }
+
+        /* 详细地址/区域 (浅灰色) */
+        .suggestion-district {
+            font-size: 12px;
+            color: #999;
+            white-space: nowrap;
+            overflow: hidden; 
+            text-overflow: ellipsis;
+        }
+
+        /* 手机适配 */
+        body.mobile-mode #controls { width: 90vw; left: 5vw; top: 10px; }
+        body.mobile-mode .suggestion-item { padding: 10px; }
+        body.mobile-mode .suggestion-name { font-size: 14px; }
         
-        /* 针对图标稍微增加一点间距 */
-        i.fa-solid { margin-right: 4px; }
-        .icon-btn i.fa-solid { margin-right: 0; }
-        #toggleIcon i.fa-solid { margin-right: 0; }
+        .leaflet-top.leaflet-right { margin-top: 60px; }
     </style>
 </head>
 <body>
 
     <div id="controls">
         <div class="controls-header" onclick="togglePanel()" id="panelHeader">
-            <span><i class="fa-solid fa-gear"></i> 控制面板</span>
+            <span><i class="fa-solid fa-gear"></i> 定位控制台</span>
             <span id="toggleIcon"><i class="fa-solid fa-chevron-down"></i></span>
         </div>
         <div class="controls-content" id="panelContent">
             
-            <!-- 搜索模块 -->
             <div class="row">
-                <input type="text" id="searchInput" placeholder="搜地点...">
+                <div class="search-wrapper">
+                    <input type="text" id="searchInput" placeholder="请输入地点 (如: 成都)" autocomplete="off">
+                    <div id="searchResults"></div>
+                </div>
                 <button class="btn-primary" onclick="searchLocation()" style="width: 50px; flex-shrink: 0;" title="搜索"><i class="fa-solid fa-magnifying-glass"></i></button>
             </div>
 
-            <!-- 半径设置 -->
             <div class="row">
                 <label>半径(KM):</label>
-                <input type="number" id="radius" value="3" step="0.1" placeholder="如 1.5">
+                <input type="number" id="radius" value="3" step="0.1" placeholder="默认 3.0">
             </div>
             
-            <!-- 定位按钮 -->
-            <button id="locateBtn" class="btn-success" onclick="locateMe()"><i class="fa-solid fa-location-crosshairs"></i> 定位我</button>
+            <button id="locateBtn" class="btn-success" onclick="locateMe()"><i class="fa-solid fa-location-crosshairs"></i> 定位我的位置</button>
 
-            <!-- 定位确认区域 (默认隐藏) -->
-            <div id="locationConfirmArea" style="display: none; flex-direction: column; gap: 5px; background: #e2e3e5; padding: 6px; border-radius: 4px;">
-                <div style="font-size: 11px; color: #383d41; text-align: center; font-weight: bold;">在此处画圆？</div>
-                <div style="display: flex; gap: 5px;">
+            <div id="locationConfirmArea" style="display: none; flex-direction: column; gap: 8px; background: #f1f3f5; padding: 10px; border-radius: 4px;">
+                <div style="font-size: 12px; color: #333; text-align: center;">位置已锁定，是否在此画圆？</div>
+                <div style="display: flex; gap: 10px;">
                     <button class="btn-success" onclick="confirmLocation()" style="flex: 1;"><i class="fa-solid fa-check"></i> 确定</button>
                     <button class="btn-clear" onclick="cancelLocation()" style="flex: 1; background: #6c757d;"><i class="fa-solid fa-xmark"></i> 取消</button>
                 </div>
             </div>
 
-            <!-- 点击画圆开关 -->
             <button id="clickDrawBtn" class="btn-primary" onclick="toggleClickDraw()" style="background-color: #17a2b8;"><i class="fa-solid fa-hand-pointer"></i> 手点地图画圆: [开]</button>
 
-            <!-- PS风格图层面板 -->
             <div class="layer-panel">
-                <div class="layer-header"><i class="fa-solid fa-layer-group"></i> 图层面板</div>
+                <div class="layer-header"><i class="fa-solid fa-layer-group"></i> 已创建的圆</div>
                 <ul id="layerList" class="layer-list">
-                    <!-- 动态生成图层 -->
-                    <li style="padding: 10px; font-size: 11px; color: #999; text-align: center;">暂无图层</li>
+                    <li style="padding: 15px; font-size: 12px; color: #bbb; text-align: center;">暂无数据</li>
                 </ul>
             </div>
 
             <div class="tip">
-                1. 输入半径(千米)<br>
-                2. 点击地图或搜索来画圆<br>
-                3. 右侧可切换卫星图
+                <i class="fa-solid fa-circle-info"></i> 提示：
+                搜索建议已优化，点击列表项可直接定位。右上角可切换谷歌/高德底图。
             </div>
 
             <button class="btn-clear" onclick="clearAll()"><i class="fa-solid fa-trash-can"></i> 清空所有</button>
@@ -171,21 +202,21 @@
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script>
-        // --- 智能设备识别 (核心优化) ---
+        // ==========================================
+        //  已填入您的 Key
+        // ==========================================
+        const AMAP_KEY = '38a75ef5ceb95f6097fb29b35e8fcb01'; 
+
+        // 1. 设备检测
         function checkDevice() {
             var isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || window.innerWidth < 600;
-            if (isMobile) {
-                document.body.classList.add('mobile-mode');
-            } else {
-                document.body.classList.remove('mobile-mode');
-            }
+            if (isMobile) document.body.classList.add('mobile-mode');
+            else document.body.classList.remove('mobile-mode');
         }
-        // 初始化检测，并在窗口大小改变时动态检测
         checkDevice();
         window.addEventListener('resize', checkDevice);
 
-
-        // --- 坐标转换算法 (WGS84 -> GCJ02) ---
+        // 2. 坐标转换工具 (WGS84 <-> GCJ02)
         const PI = 3.1415926535897932384626;
         const a = 6378245.0;
         const ee = 0.00669342162296594323;
@@ -197,7 +228,6 @@
             ret += (160.0 * Math.sin(y / 12.0 * PI) + 320 * Math.sin(y * PI / 30.0)) * 2.0 / 3.0;
             return ret;
         }
-
         function transformLng(x, y) {
             let ret = 300.0 + x + 2.0 * y + 0.1 * x * x + 0.1 * x * y + 0.1 * Math.sqrt(Math.abs(x));
             ret += (20.0 * Math.sin(6.0 * x * PI) + 20.0 * Math.sin(2.0 * x * PI)) * 2.0 / 3.0;
@@ -205,11 +235,8 @@
             ret += (150.0 * Math.sin(x / 12.0 * PI) + 300.0 * Math.sin(x / 30.0 * PI)) * 2.0 / 3.0;
             return ret;
         }
-
         function wgs84togcj02(lng, lat) {
-            if (lng < 72.004 || lng > 137.8347 || lat < 0.8293 || lat > 55.8271) {
-                return [lng, lat]; // 不在国内，不进行转换
-            }
+            if (lng < 72.004 || lng > 137.8347 || lat < 0.8293 || lat > 55.8271) return [lng, lat];
             let dlat = transformLat(lng - 105.0, lat - 35.0);
             let dlng = transformLng(lng - 105.0, lat - 35.0);
             let radlat = lat / 180.0 * PI;
@@ -220,12 +247,8 @@
             dlng = (dlng * 180.0) / (a / sqrtmagic * Math.cos(radlat) * PI);
             return [lng + dlng, lat + dlat];
         }
-
-        // --- 坐标逆向转换算法 (GCJ02 -> WGS84) 用于纠正手点地图的偏移 ---
         function gcj02towgs84(lng, lat) {
-            if (lng < 72.004 || lng > 137.8347 || lat < 0.8293 || lat > 55.8271) {
-                return [lng, lat];
-            }
+            if (lng < 72.004 || lng > 137.8347 || lat < 0.8293 || lat > 55.8271) return [lng, lat];
             let dlat = transformLat(lng - 105.0, lat - 35.0);
             let dlng = transformLng(lng - 105.0, lat - 35.0);
             let radlat = lat / 180.0 * PI;
@@ -236,74 +259,43 @@
             dlng = (dlng * 180.0) / (a / sqrtmagic * Math.cos(radlat) * PI);
             let mglat = lat + dlat;
             let mglng = lng + dlng;
-            return [lng * 2 - mglng, lat * 2 - mglat]; // 近似反算
+            return [lng * 2 - mglng, lat * 2 - mglat];
         }
 
-
-        // 1. 初始化地图
-        var map = L.map('map', {
-            center: [39.9042, 116.4074], // 默认北京
-            zoom: 11,
-            zoomControl: false // 手机端推荐隐藏默认缩放控件
-        });
-
-        // 图层管理状态 (类似PS)
+        // 3. 地图初始化
+        var map = L.map('map', { center: [39.9042, 116.4074], zoom: 11, zoomControl: false });
         var layersData = {};
         var layerCount = 0;
         var isClickDrawEnabled = true;
-        var tempLocateMarker = null; // 用于存储定位时的临时标记
-        
-        // --- 新增：核心坐标系状态管理 ---
-        var currentCoordSystem = 'GCJ02'; // 默认底图是高德(GCJ02)
-        var tempLocateWgsLng = null; // 存储定位的绝对无偏经度
-        var tempLocateWgsLat = null; // 存储定位的绝对无偏纬度
+        var tempLocateMarker = null;
+        var currentCoordSystem = 'GCJ02'; 
+        var tempLocateWgsLng = null;
+        var tempLocateWgsLat = null;
 
-        // 2. 加载高德图层
-        var gaodeVec = L.tileLayer('https://webrd01.is.autonavi.com/appmaptile?lang=zh_cn&size=1&scale=1&style=8&x={x}&y={y}&z={z}', {
-            maxZoom: 18, attribution: '高德地图'
-        });
-        var gaodeSat = L.tileLayer('https://webst01.is.autonavi.com/appmaptile?style=6&x={x}&y={y}&z={z}', {
-            maxZoom: 18, attribution: '高德卫星'
-        });
-        
-        // 【修改此处】谷歌纯卫星图 (lyrs=s 表示纯卫星图片，去除了强制偏移的错位路网)
-        var googleSat = L.tileLayer('https://mt{s}.google.com/vt/lyrs=s&x={x}&y={y}&z={z}', {
-            maxZoom: 18,
-            subdomains: ['0', '1', '2', '3'],
-            attribution: '© Google Maps'
-        });
+        var gaodeVec = L.tileLayer('https://webrd01.is.autonavi.com/appmaptile?lang=zh_cn&size=1&scale=1&style=8&x={x}&y={y}&z={z}', { maxZoom: 18, attribution: '高德地图' });
+        var gaodeSat = L.tileLayer('https://webst01.is.autonavi.com/appmaptile?style=6&x={x}&y={y}&z={z}', { maxZoom: 18, attribution: '高德卫星' });
+        var googleSat = L.tileLayer('https://mt{s}.google.com/vt/lyrs=s&x={x}&y={y}&z={z}', { maxZoom: 18, subdomains: ['0', '1', '2', '3'], attribution: '© Google Maps' });
 
         gaodeVec.addTo(map);
+        L.control.layers({ "高德标准图": gaodeVec, "高德卫星图": gaodeSat, "谷歌纯卫星图": googleSat }, null, {position: 'topright'}).addTo(map);
 
-        var baseMaps = {
-            "高德标准图": gaodeVec,
-            "高德卫星图": gaodeSat,
-            "谷歌纯卫星图": googleSat
-        };
-        
-        L.control.layers(baseMaps, null, {position: 'topright'}).addTo(map);
-
-        // --- 核心优化：监听图层切换，动态修正坐标偏移 ---
+        // 4. 底图切换监听 (修正偏移)
         map.on('baselayerchange', function (e) {
-            // 【修改此处】匹配新的图层名字
             var newCoordSystem = (e.name === '谷歌纯卫星图') ? 'WGS84' : 'GCJ02';
-            
             if (newCoordSystem !== currentCoordSystem) {
-                // 1. 修正地图中心点视角，让画面保持在同一建筑物上
                 var center = map.getCenter();
                 var newCenter;
-                if (newCoordSystem === 'WGS84') { // 换成谷歌：抹除偏移
+                if (newCoordSystem === 'WGS84') {
                     var wgs = gcj02towgs84(center.lng, center.lat);
                     newCenter = L.latLng(wgs[1], wgs[0]);
-                } else { // 换回高德：加上偏移
+                } else {
                     var gcj = wgs84togcj02(center.lng, center.lat);
                     newCenter = L.latLng(gcj[1], gcj[0]);
                 }
                 map.setView(newCenter, map.getZoom(), { animate: false });
+                currentCoordSystem = newCoordSystem;
                 
-                currentCoordSystem = newCoordSystem; // 更新当前系统状态
-                
-                // 2. 修正临时定位图标 (如果此时正在询问"是否在此画圆")
+                // 修正定位图标
                 if (tempLocateMarker && tempLocateWgsLng) {
                     var tLatLng;
                     if (currentCoordSystem === 'GCJ02') {
@@ -315,7 +307,7 @@
                     tempLocateMarker.setLatLng(tLatLng);
                 }
                 
-                // 3. 修正所有已经画好的圆圈位置
+                // 修正所有圆
                 Object.keys(layersData).forEach(function(id) {
                     var data = layersData[id];
                     var renderLatlng;
@@ -325,26 +317,139 @@
                     } else {
                         renderLatlng = L.latLng(data.wgsLat, data.wgsLng);
                     }
-                    // 批量更新每个圆和中心点的位置，不闪烁
-                    data.group.eachLayer(function(layer) {
-                        layer.setLatLng(renderLatlng);
-                    });
+                    data.group.eachLayer(function(layer) { layer.setLatLng(renderLatlng); });
                 });
             }
         });
 
+        // 5. 核心：高德极速搜索 (REST API)
+        function debounce(func, wait) {
+            let timeout;
+            return function () {
+                const context = this, args = arguments;
+                clearTimeout(timeout);
+                timeout = setTimeout(() => func.apply(context, args), wait);
+            };
+        }
 
-        // --- 图层面板 UI 更新逻辑 ---
-        function updateLayerUI() {
-            var list = document.getElementById('layerList');
-            list.innerHTML = '';
-            var keys = Object.keys(layersData).reverse(); // 新图层在最上面
+        const searchInput = document.getElementById('searchInput');
+        const resultsBox = document.getElementById('searchResults');
+
+        // 通用飞跃函数
+        function flyToAmapsLoc(lng, lat, name) {
+            // 收到的是高德坐标，转为 WGS84 存储
+            const wgs = gcj02towgs84(lng, lat);
+            const wgsLng = wgs[0];
+            const wgsLat = wgs[1];
+
+            let renderLatlng;
+            if (currentCoordSystem === 'GCJ02') {
+                renderLatlng = L.latLng(lat, lng);
+            } else {
+                renderLatlng = L.latLng(wgsLat, wgsLng);
+            }
+
+            map.setView(renderLatlng, 14);
+            createCircleLayer(wgsLng, wgsLat, name);
+            if(document.body.classList.contains('mobile-mode') && isPanelOpen) { togglePanel(); }
+        }
+
+        // 监听输入 - 调用高德 InputTips API
+        searchInput.addEventListener('input', debounce(function() {
+            const query = this.value.trim();
+            if (query.length < 1) { resultsBox.style.display = 'none'; return; }
             
-            if (keys.length === 0) {
-                list.innerHTML = '<li style="padding: 10px; font-size: 11px; color: #999; text-align: center;">暂无图层</li>';
+            // 使用您提供的 Key
+            const url = `https://restapi.amap.com/v3/assistant/inputtips?key=${AMAP_KEY}&keywords=${encodeURIComponent(query)}&datatype=all`;
+
+            fetch(url)
+                .then(res => res.json())
+                .then(data => {
+                    if(data.status === '1' && data.tips) {
+                        renderSuggestions(data.tips);
+                    }
+                })
+                .catch(err => console.error(err));
+        }, 200)); 
+
+        // 渲染搜索建议 (UI美化版)
+        function renderSuggestions(tips) {
+            resultsBox.innerHTML = '';
+            const validTips = tips.filter(t => t.location && t.location.length > 0);
+            
+            if (validTips.length === 0) {
+                resultsBox.style.display = 'none';
                 return;
             }
 
+            validTips.forEach(item => {
+                const div = document.createElement('div');
+                div.className = 'suggestion-item';
+                
+                // 拼接区域信息 (省+市+区 或 详细地址)
+                let districtInfo = "";
+                if (item.district && typeof item.district === 'string') {
+                    districtInfo = item.district;
+                }
+
+                div.innerHTML = `
+                    <div class="suggestion-icon"><i class="fa-solid fa-magnifying-glass"></i></div>
+                    <div class="suggestion-info">
+                        <span class="suggestion-name">${item.name}</span>
+                        <span class="suggestion-district">${districtInfo}</span>
+                    </div>
+                `;
+
+                div.onclick = function() {
+                    searchInput.value = item.name;
+                    resultsBox.style.display = 'none';
+                    const coords = item.location.split(',');
+                    flyToAmapsLoc(parseFloat(coords[0]), parseFloat(coords[1]), item.name);
+                };
+                resultsBox.appendChild(div);
+            });
+            resultsBox.style.display = 'block';
+        }
+
+        // 搜索按钮点击 (POI搜索)
+        function searchLocation() {
+            var kw = document.getElementById('searchInput').value.trim();
+            if(!kw) { alert("请输入地点"); return; }
+            
+            const btn = document.querySelector('.btn-primary');
+            const originalHTML = btn.innerHTML;
+            btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>';
+
+            const url = `https://restapi.amap.com/v3/place/text?key=${AMAP_KEY}&keywords=${encodeURIComponent(kw)}&offset=1&page=1&extensions=base`;
+
+            fetch(url).then(r => r.json()).then(data => {
+                btn.innerHTML = originalHTML;
+                if(data.status === '1' && data.pois && data.pois.length > 0) {
+                    const poi = data.pois[0];
+                    const coords = poi.location.split(',');
+                    flyToAmapsLoc(parseFloat(coords[0]), parseFloat(coords[1]), poi.name);
+                } else {
+                    alert("未找到该地点");
+                }
+            }).catch(e => { btn.innerHTML = originalHTML; alert("请求失败"); });
+        }
+
+        // 点击外部关闭搜索框
+        document.addEventListener('click', function(e) {
+            if (!searchInput.contains(e.target) && !resultsBox.contains(e.target)) {
+                resultsBox.style.display = 'none';
+            }
+        });
+
+        // 6. 图层管理与画圆逻辑
+        function updateLayerUI() {
+            var list = document.getElementById('layerList');
+            list.innerHTML = '';
+            var keys = Object.keys(layersData).reverse();
+            if (keys.length === 0) {
+                list.innerHTML = '<li style="padding: 15px; font-size: 12px; color: #bbb; text-align: center;">暂无数据</li>';
+                return;
+            }
             keys.forEach(function(id) {
                 var data = layersData[id];
                 var li = document.createElement('li');
@@ -353,65 +458,41 @@
                 var nameSpan = document.createElement('span');
                 nameSpan.className = 'layer-name';
                 nameSpan.innerText = data.name;
-                nameSpan.title = data.name; // 长按或鼠标悬浮可看全名
-                if(!data.visible) {
-                    nameSpan.style.color = '#adb5bd';
-                    nameSpan.style.textDecoration = 'line-through';
-                }
+                nameSpan.title = data.name;
+                if(!data.visible) { nameSpan.style.color = '#ccc'; nameSpan.style.textDecoration = 'line-through'; }
                 
                 var actions = document.createElement('div');
-                actions.className = 'layer-actions';
-                
                 var eyeBtn = document.createElement('button');
-                eyeBtn.className = 'icon-btn';
+                eyeBtn.className = 'icon-btn eye'; 
                 eyeBtn.innerHTML = data.visible ? '<i class="fa-solid fa-eye"></i>' : '<i class="fa-solid fa-eye-slash"></i>';
-                eyeBtn.title = "显示/隐藏图层";
                 eyeBtn.onclick = function() { toggleLayerVisibility(id); };
-                
                 var delBtn = document.createElement('button');
-                delBtn.className = 'icon-btn';
+                delBtn.className = 'icon-btn delete';
                 delBtn.innerHTML = '<i class="fa-solid fa-trash-can"></i>';
-                delBtn.title = "删除此图层";
                 delBtn.onclick = function() { deleteLayer(id); };
                 
-                actions.appendChild(eyeBtn);
-                actions.appendChild(delBtn);
-                li.appendChild(nameSpan);
-                li.appendChild(actions);
+                actions.appendChild(eyeBtn); actions.appendChild(delBtn);
+                li.appendChild(nameSpan); li.appendChild(actions);
                 list.appendChild(li);
             });
         }
 
         function toggleLayerVisibility(id) {
             var data = layersData[id];
-            if(data.visible) {
-                map.removeLayer(data.group);
-                data.visible = false;
-            } else {
-                map.addLayer(data.group);
-                data.visible = true;
-            }
+            if(data.visible) { map.removeLayer(data.group); data.visible = false; }
+            else { map.addLayer(data.group); data.visible = true; }
             updateLayerUI();
         }
-
         function deleteLayer(id) {
-            var data = layersData[id];
-            map.removeLayer(data.group);
+            map.removeLayer(layersData[id].group);
             delete layersData[id];
             updateLayerUI();
         }
 
-        // --- 核心画圆逻辑 (统一改为接收真实的 WGS84 绝对坐标) ---
         function createCircleLayer(wgsLng, wgsLat, sourceName) {
             var r = parseFloat(document.getElementById('radius').value);
-            if(isNaN(r) || r <= 0) {
-                r = 3; // 默认3公里
-                document.getElementById('radius').value = 3;
-            }
+            if(isNaN(r) || r <= 0) { r = 3; document.getElementById('radius').value = 3; }
             
-            var radiusInMeters = r * 1000; // 千米转米
-
-            // 根据当前正在看哪种底图，来决定“显示在哪里”
             var renderLatlng;
             if (currentCoordSystem === 'GCJ02') {
                 var gcj = wgs84togcj02(wgsLng, wgsLat);
@@ -419,37 +500,18 @@
             } else {
                 renderLatlng = L.latLng(wgsLat, wgsLng);
             }
-
-            // 添加中心点和圆
-            var marker = L.circleMarker(renderLatlng, {
-                radius: 4, color: '#000', fillColor: '#fff', fillOpacity: 1
-            });
-            var circle = L.circle(renderLatlng, {
-                color: 'red',
-                fillColor: '#f03',
-                fillOpacity: 0.25,
-                radius: radiusInMeters
-            });
-
-            // 组合成一个图层组
+            
+            var marker = L.circleMarker(renderLatlng, { radius: 5, color: '#007bff', fillColor: '#fff', fillOpacity: 1 });
+            var circle = L.circle(renderLatlng, { color: '#dc3545', fillColor: '#f03', fillOpacity: 0.15, weight: 2, radius: r * 1000 });
             var layerGroup = L.layerGroup([marker, circle]).addTo(map);
-
-            // 注册到图层面板，并将真实的 wgs 坐标妥善保存起来！
+            
             layerCount++;
             var layerId = 'layer_' + Date.now();
-            var finalName = sourceName ? sourceName : "未知位置";
-            layersData[layerId] = {
-                group: layerGroup,
-                visible: true,
-                name: `L${layerCount}: ${finalName} (${r}KM)`,
-                wgsLng: wgsLng,
-                wgsLat: wgsLat
-            };
-
+            layersData[layerId] = { group: layerGroup, visible: true, name: `L${layerCount}: ${sourceName} (${r}KM)`, wgsLng: wgsLng, wgsLat: wgsLat };
             updateLayerUI();
         }
 
-        // 3. 手点地图画圆开关
+        // 7. 手点地图画圆
         function toggleClickDraw() {
             isClickDrawEnabled = !isClickDrawEnabled;
             var btn = document.getElementById('clickDrawBtn');
@@ -461,176 +523,79 @@
                 btn.innerHTML = '<i class="fa-solid fa-hand-pointer"></i> 手点地图画圆: [关]';
             }
         }
-
         map.on('click', function(e) {
             if (isClickDrawEnabled) {
-                // 如果在有偏移的高德地图上点击，需“逆向”算出真实 WGS 坐标保存
                 var wgsLng, wgsLat;
                 if (currentCoordSystem === 'GCJ02') {
                     var wgs = gcj02towgs84(e.latlng.lng, e.latlng.lat);
-                    wgsLng = wgs[0];
-                    wgsLat = wgs[1];
+                    wgsLng = wgs[0]; wgsLat = wgs[1];
                 } else {
-                    wgsLng = e.latlng.lng;
-                    wgsLat = e.latlng.lat;
+                    wgsLng = e.latlng.lng; wgsLat = e.latlng.lat;
                 }
                 createCircleLayer(wgsLng, wgsLat, "手点地图");
             }
         });
 
-
-        // --- 面板最小化功能 ---
+        // 8. 面板交互
         var isPanelOpen = true;
         function togglePanel() {
             var content = document.getElementById('panelContent');
             var header = document.getElementById('panelHeader');
             var icon = document.getElementById('toggleIcon');
-            
             isPanelOpen = !isPanelOpen;
             if (isPanelOpen) {
-                content.style.display = 'flex';
-                icon.innerHTML = '<i class="fa-solid fa-chevron-down"></i>';
-                header.classList.remove('collapsed');
+                content.style.display = 'flex'; icon.innerHTML = '<i class="fa-solid fa-chevron-down"></i>'; header.classList.remove('collapsed');
             } else {
-                content.style.display = 'none';
-                icon.innerHTML = '<i class="fa-solid fa-chevron-left"></i>';
-                header.classList.add('collapsed');
+                content.style.display = 'none'; icon.innerHTML = '<i class="fa-solid fa-chevron-left"></i>'; header.classList.add('collapsed');
             }
         }
 
-
-        // --- 定位功能 ---
+        // 9. 定位功能
         function locateMe() {
             if ("geolocation" in navigator) {
                 const btn = document.getElementById('locateBtn');
                 const originalHTML = btn.innerHTML;
                 btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> 定位中...';
-                
                 navigator.geolocation.getCurrentPosition(function(position) {
                     btn.innerHTML = originalHTML;
                     var wgsLng = position.coords.longitude;
                     var wgsLat = position.coords.latitude;
                     
-                    // 根据当前底图决定临时水滴滴在哪里
                     var renderLatlng;
                     if (currentCoordSystem === 'GCJ02') {
-                        var gcjCoords = wgs84togcj02(wgsLng, wgsLat);
-                        renderLatlng = L.latLng(gcjCoords[1], gcjCoords[0]);
+                        var gcj = wgs84togcj02(wgsLng, wgsLat);
+                        renderLatlng = L.latLng(gcj[1], gcj[0]);
                     } else {
                         renderLatlng = L.latLng(wgsLat, wgsLng);
                     }
                     
-                    map.setView(renderLatlng, 18);
-                    
-                    if(tempLocateMarker) { map.removeLayer(tempLocateMarker); }
+                    map.setView(renderLatlng, 17);
+                    if(tempLocateMarker) map.removeLayer(tempLocateMarker);
                     tempLocateMarker = L.marker(renderLatlng).addTo(map);
-                    
-                    // 记录此时的真实坐标备用
                     tempLocateWgsLng = wgsLng;
                     tempLocateWgsLat = wgsLat;
-
+                    
                     btn.style.display = 'none';
                     document.getElementById('locationConfirmArea').style.display = 'flex';
+                    if(!isPanelOpen) togglePanel();
                     
-                    if(!isPanelOpen) {
-                        togglePanel();
-                    }
-                }, function(error) {
-                    btn.innerHTML = originalHTML;
-                    alert("定位失败，请确保已授予浏览器位置权限。");
-                }, {
-                    enableHighAccuracy: true,
-                    timeout: 10000,
-                    maximumAge: 0
-                });
-            } else {
-                alert("您的浏览器不支持地理定位功能。");
-            }
+                }, function(error) { btn.innerHTML = originalHTML; alert("定位失败或拒绝权限"); }, { enableHighAccuracy: true });
+            } else { alert("浏览器不支持定位"); }
         }
-
-        // --- 确认定位并画圆 ---
         function confirmLocation() {
-            if(tempLocateWgsLng && tempLocateWgsLat) {
-                createCircleLayer(tempLocateWgsLng, tempLocateWgsLat, "我的位置");
-            }
-            resetLocateUI();
-            map.setZoom(13); 
-        }
-
-        // --- 取消定位画圆 ---
-        function cancelLocation() {
+            if(tempLocateWgsLng) createCircleLayer(tempLocateWgsLng, tempLocateWgsLat, "我的位置");
             resetLocateUI();
         }
-
+        function cancelLocation() { resetLocateUI(); }
         function resetLocateUI() {
-            if(tempLocateMarker) {
-                map.removeLayer(tempLocateMarker);
-                tempLocateMarker = null;
-            }
-            tempLocateWgsLng = null;
-            tempLocateWgsLat = null;
+            if(tempLocateMarker) { map.removeLayer(tempLocateMarker); tempLocateMarker = null; }
             document.getElementById('locateBtn').style.display = 'block';
             document.getElementById('locationConfirmArea').style.display = 'none';
         }
-
-
-        // --- 搜索功能 ---
-        function searchLocation() {
-            var kw = document.getElementById('searchInput').value.trim();
-            if(!kw) {
-                alert("请输入搜索内容");
-                return;
-            }
-            
-            var url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(kw)}&limit=1`;
-            
-            const btn = document.querySelector('.btn-primary');
-            const originalHTML = btn.innerHTML;
-            btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>';
-
-            fetch(url)
-                .then(response => response.json())
-                .then(data => {
-                    btn.innerHTML = originalHTML;
-                    if(data && data.length > 0) {
-                        var wgsLat = parseFloat(data[0].lat);
-                        var wgsLng = parseFloat(data[0].lon);
-                        
-                        // 根据当前底图决定画面飞向哪里
-                        var renderLatlng;
-                        if (currentCoordSystem === 'GCJ02') {
-                            var gcjCoords = wgs84togcj02(wgsLng, wgsLat);
-                            renderLatlng = L.latLng(gcjCoords[1], gcjCoords[0]);
-                        } else {
-                            renderLatlng = L.latLng(wgsLat, wgsLng);
-                        }
-                        
-                        map.setView(renderLatlng, 13);
-                        createCircleLayer(wgsLng, wgsLat, kw);
-                        
-                        if(document.body.classList.contains('mobile-mode') && isPanelOpen) {
-                            togglePanel();
-                        }
-                    } else {
-                        alert("未找到该地点，请尝试输入更详细的地址。");
-                    }
-                })
-                .catch(err => {
-                    btn.innerHTML = originalHTML;
-                    alert("搜索请求出错，请检查网络。");
-                });
-        }
-
-        // --- 清空功能 ---
         function clearAll() {
-            Object.keys(layersData).forEach(function(id) {
-                map.removeLayer(layersData[id].group);
-            });
-            layersData = {};
-            layerCount = 0;
-            updateLayerUI();
+            Object.keys(layersData).forEach(function(id) { map.removeLayer(layersData[id].group); });
+            layersData = {}; layerCount = 0; updateLayerUI();
         }
-
     </script>
 </body>
 </html>
